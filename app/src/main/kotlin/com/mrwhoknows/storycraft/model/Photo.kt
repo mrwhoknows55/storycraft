@@ -1,5 +1,6 @@
 package com.mrwhoknows.storycraft.model
 
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.ui.geometry.Offset
@@ -12,19 +13,19 @@ sealed interface EditorState {
     object EmptyCanvas : EditorState
     data class PhotoPicked(val uri: Uri) : EditorState
     data class PhotoWithDrawing(
-        val bitmap: Bitmap,
-        val currentColor: Color = allColors.first(),
+        val mainPhoto: Bitmap,
+        val sticker: Bitmap? = null,
+        val currentColor: Color = strokeColors.first(),
         val currentStroke: StrokePath? = null,
         val allStrokePaths: List<StrokePath> = emptyList()
     ) : EditorState
 }
 
-val allColors = listOf(
-    Color.LightGray,
-    Color.Gray,
-    Color.Black,
+val strokeColors = listOf(
     Color.Yellow,
     Color.Blue,
+    Color.LightGray,
+    Color.Black,
     Color.Green,
     Color.Red,
     Color.Magenta
@@ -35,12 +36,13 @@ data class StrokePath(
     val id: String = Uuid.random().toString(),
     val path: List<Offset>,
     val color: Color,
-    val thickness: Float = 8f
+    val thickness: Float = 12f
 )
 
 sealed interface CanvasAction {
     data class SelectImage(val uri: Uri) : CanvasAction
     data class AddImage(val bitmap: Bitmap) : CanvasAction
+    data class AddSticker(val drawableId: Int, val resources: Resources) : CanvasAction
     data class ChangeColor(val selectedColor: Color) : CanvasAction
     data class DrawStroke(val position: Offset) : CanvasAction
     data object BeginNewStroke : CanvasAction

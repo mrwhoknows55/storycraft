@@ -5,9 +5,11 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,11 +37,13 @@ import com.mrwhoknows.storycraft.model.CanvasAction
 import com.mrwhoknows.storycraft.model.StrokePath
 import com.mrwhoknows.storycraft.util.saveToDisk
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 @Composable
 fun DrawingCanvas(
     modifier: Modifier = Modifier,
-    bitmap: Bitmap? = null,
+    photo: Bitmap? = null,
+    sticker: Bitmap? = null,
     saveToDisk: Boolean = false,
     onSaveDone: (Uri) -> Unit,
     currentStroke: StrokePath? = null,
@@ -50,10 +54,20 @@ fun DrawingCanvas(
     val density = LocalDensity.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-
+    var stickerOffset by remember { mutableStateOf(IntOffset(Int.MIN_VALUE, Int.MIN_VALUE)) }
+    var stickerSize by remember { mutableStateOf(IntSize(0, 0)) }
     Canvas(modifier = modifier
         .height(canvasHeight)
         .clipToBounds()
+        .pointerInput(Unit) {
+            detectDragGesturesAfterLongPress(onDrag = { change, dragAmount ->
+                change.consume()
+                stickerOffset = IntOffset(
+                    stickerOffset.x + dragAmount.x.toInt(),
+                    stickerOffset.y + dragAmount.y.toInt()
+                )
+            })
+        }
         .drawWithCache {
             if (saveToDisk) {
                 onDrawWithContent {
@@ -89,7 +103,7 @@ fun DrawingCanvas(
 
     ) {
 
-        bitmap?.asImageBitmap()?.let { imageBitmap ->
+        photo?.asImageBitmap()?.let { imageBitmap ->
             canvasHeight = with(density) {
                 imageBitmap.height.toDp()
             }
@@ -98,6 +112,7 @@ fun DrawingCanvas(
             )
             val scaledWidth = imageBitmap.width * scale
             val scaledHeight = imageBitmap.height * scale
+
             drawImage(
                 image = imageBitmap,
                 dstSize = IntSize(scaledWidth.toInt(), scaledHeight.toInt()),
@@ -105,6 +120,19 @@ fun DrawingCanvas(
                     ((size.width - scaledWidth) / 2).toInt(),
                     ((size.height - scaledHeight) / 2).toInt(),
                 )
+            )
+        }
+
+        sticker?.asImageBitmap()?.let { imageBitmap ->
+            stickerSize = IntSize(imageBitmap.width, imageBitmap.height)
+
+            if (stickerOffset.x == Int.MIN_VALUE && stickerOffset.y == Int.MIN_VALUE) {
+                val offsetX = (size.width - stickerSize.width) / 2
+                val offsetY = (size.height - stickerSize.height) / 2
+                stickerOffset = IntOffset(offsetX.toInt(), offsetY.toInt())
+            }
+            drawImage(
+                image = imageBitmap, dstSize = stickerSize, dstOffset = stickerOffset
             )
         }
 

@@ -21,12 +21,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,23 +41,26 @@ import androidx.core.content.ContextCompat
 import com.mrwhoknows.storycraft.R
 import com.mrwhoknows.storycraft.model.CanvasAction
 import com.mrwhoknows.storycraft.model.EditorState
-import com.mrwhoknows.storycraft.model.allColors
+import com.mrwhoknows.storycraft.model.strokeColors
 import com.mrwhoknows.storycraft.ui.componenet.DrawingCanvas
 import com.mrwhoknows.storycraft.util.getImageBitmap
 import com.mrwhoknows.storycraft.util.launchCamera
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(
     photoState: EditorState,
+    stickers: List<Int>,
     onAction: (CanvasAction) -> Unit,
     onStoryShareClick: (Uri) -> Unit,
 ) {
     val background = colorScheme.background
     val context = LocalContext.current
     var saveCanvasAsImg by remember { mutableStateOf(false) }
+    var showStickerPicker by remember { mutableStateOf(false) }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -121,16 +127,16 @@ fun EditorScreen(
         FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f, fill = false)
+                .weight(2f, fill = false)
                 .padding(horizontal = 10.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.Center,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            maxLines = 2
         ) {
             if (photoState !is EditorState.PhotoWithDrawing) {
                 Button(onClick = context::checkCameraPermissionAndLaunch) {
                     Text(stringResource(R.string.capture_image))
                 }
-
             } else {
                 if (photoState.allStrokePaths.isNotEmpty()) {
                     Button(
@@ -151,14 +157,24 @@ fun EditorScreen(
                 }
 
                 Button(onClick = {
+                    showStickerPicker = true
+                }) {
+                    Text(stringResource(R.string.add_sticker))
+                }
+
+
+                Button(onClick = {
                     saveCanvasAsImg = true
                 }) {
                     Text(stringResource(R.string.share_on_ig_story))
                 }
+
             }
+
         }
 
-        val image = (photoState as? EditorState.PhotoWithDrawing)?.bitmap
+        val image = (photoState as? EditorState.PhotoWithDrawing)?.mainPhoto
+        val sticker = (photoState as? EditorState.PhotoWithDrawing)?.sticker
         val currentPath = (photoState as? EditorState.PhotoWithDrawing)?.currentStroke
         val paths = (photoState as? EditorState.PhotoWithDrawing)?.allStrokePaths ?: emptyList()
         DrawingCanvas(modifier = Modifier
@@ -166,7 +182,8 @@ fun EditorScreen(
             .weight(5f, fill = false)
             .fillMaxWidth()
             .padding(8.dp),
-            bitmap = image,
+            photo = image,
+            sticker = sticker,
             currentStroke = currentPath,
             paths = paths,
             action = onAction,
@@ -184,7 +201,7 @@ fun EditorScreen(
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                allColors.forEach { color ->
+                strokeColors.forEach { color ->
                     val currentColor = photoState.currentColor
 
                     if (color.value != currentColor.value) {
@@ -214,6 +231,28 @@ fun EditorScreen(
                 }
             }
         }
+    }
+
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    fun hide() {
+        scope.launch {
+            sheetState.hide()
+            showStickerPicker = false
+        }
+    }
+    if (showStickerPicker) {
+        StickerPickerSheet(
+            stickers = stickers,
+            sheetState = sheetState,
+            selectedStickerId = {
+                onAction(CanvasAction.AddSticker(it, context.applicationContext.resources))
+                hide()
+            },
+            dismiss = {
+                hide()
+            }
+        )
     }
 }
 

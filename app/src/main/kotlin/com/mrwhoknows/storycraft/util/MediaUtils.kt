@@ -1,11 +1,13 @@
 package com.mrwhoknows.storycraft.util
 
-import android.annotation.SuppressLint
 import android.content.ContentResolver
+import com.mrwhoknows.storycraft.R
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
@@ -109,3 +111,20 @@ private fun File.writeBitmap(bitmap: Bitmap, format: Bitmap.CompressFormat, qual
         out.flush()
     }
 }
+
+suspend fun getStickersDrawableList(): List<Int> = withContext(Dispatchers.IO) {
+    val drawableList = mutableListOf<Int>()
+    val drawableClass = R.drawable::class.java
+    for (i in 1..122) {
+        try {
+            val fieldName = "ic_sticker_$i"
+            val field = drawableClass.getField(fieldName)
+            drawableList.add(field.getInt(null))
+        } catch (_: Exception) {
+            // ignore
+        }
+    }
+    return@withContext drawableList
+}
+
+fun Resources.getBitmapFromDrawableRes(drawableResId: Int): Bitmap = BitmapFactory.decodeResource(this, drawableResId)
