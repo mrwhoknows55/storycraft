@@ -20,10 +20,9 @@ class MainActivity : ComponentActivity() {
             StoryCraftTheme {
                 val viewModel by viewModels<EditorViewModel>()
                 val state by viewModel.photo.collectAsState()
-                EditorScreen(photoState = state,
-                    setImageUri = viewModel::setImageUri,
-                    setBitmap = viewModel::setBitmap,
-                    onDiscardImageClick = viewModel::clearCanvas,
+                EditorScreen(
+                    photoState = state,
+                    onAction = viewModel::onAction,
                     onStoryShareClick = {
                         viewModel.getBitmap()?.let {
                             this@MainActivity.shareOnIGStory(it)

@@ -3,26 +3,30 @@ package com.mrwhoknows.storycraft.ui.screen
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -30,7 +34,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.mrwhoknows.storycraft.R
-import com.mrwhoknows.storycraft.model.PhotoState
+import com.mrwhoknows.storycraft.model.CanvasAction
+import com.mrwhoknows.storycraft.model.EditorState
+import com.mrwhoknows.storycraft.model.allColors
 import com.mrwhoknows.storycraft.util.getImageBitmap
 import com.mrwhoknows.storycraft.util.launchCamera
 import timber.log.Timber
@@ -39,11 +45,9 @@ import timber.log.Timber
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EditorScreen(
-    photoState: PhotoState,
-    setImageUri: (Uri) -> Unit,
-    setBitmap: (Bitmap) -> Unit,
+    photoState: EditorState,
+    onAction: (CanvasAction) -> Unit,
     onStoryShareClick: () -> Unit,
-    onDiscardImageClick: () -> Unit
 ) {
     val background = colorScheme.background
     val context = LocalContext.current
@@ -55,9 +59,10 @@ fun EditorScreen(
         if (success) {
             try {
                 when (val state = photoState) {
-                    is PhotoState.Loading -> {
-                        val capturedBitmap = context.getImageBitmap(state.imageUri)
-                        setBitmap(capturedBitmap)
+
+                    is EditorState.PhotoPicked -> {
+                        val capturedBitmap = context.getImageBitmap(state.uri)
+                        onAction(CanvasAction.AddImage(capturedBitmap))
                     }
 
                     else -> {
@@ -75,7 +80,7 @@ fun EditorScreen(
     ) { isGranted ->
         if (isGranted) {
             takePictureLauncher.launchCamera(context) {
-                setImageUri(it!!)
+                onAction(CanvasAction.SelectImage(it!!))
             }
         } else {
             // todo handle permission denied
@@ -90,7 +95,7 @@ fun EditorScreen(
             ) == PackageManager.PERMISSION_GRANTED -> {
                 takePictureLauncher.launchCamera(context) {
                     Timber.i("checkCameraPermissionAndLaunch: photoUri: $it")
-                    setImageUri(it!!)
+                    onAction(CanvasAction.SelectImage(it!!))
                 }
             }
             // todo handle permission rationale
@@ -117,13 +122,15 @@ fun EditorScreen(
             verticalArrangement = Arrangement.Center,
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         ) {
-            if (photoState !is PhotoState.Success) {
+            if (photoState !is EditorState.PhotoWithDrawing) {
                 Button(onClick = context::checkCameraPermissionAndLaunch) {
                     Text(stringResource(R.string.capture_image))
                 }
 
             } else {
-                Button(onClick = onDiscardImageClick) {
+                Button(onClick = {
+                    onAction(CanvasAction.ClearCanvas)
+                }) {
                     Text(stringResource(R.string.discard_image))
                 }
 
@@ -132,6 +139,7 @@ fun EditorScreen(
                 }
             }
         }
+
         Canvas(
             modifier = Modifier
                 .background(background)
@@ -140,9 +148,8 @@ fun EditorScreen(
                 .padding(8.dp)
         ) {
             when (val state = photoState) {
-                is PhotoState.Success -> {
-                    state.photo.bitmap?.asImageBitmap()?.let { imageBitmap ->
-                        Timber.i("Drawing image: ${imageBitmap.height} -> ${imageBitmap.width}")
+                is EditorState.PhotoWithDrawing -> {
+                    state.bitmap.asImageBitmap().let { imageBitmap ->
                         val scale = minOf(
                             size.width / imageBitmap.width, size.height / imageBitmap.height
                         )
@@ -152,19 +159,52 @@ fun EditorScreen(
                             image = imageBitmap,
                             dstSize = IntSize(scaledWidth.toInt(), scaledHeight.toInt())
                         )
-                    } ?: run {
-                        Timber.e("Error loading image: state: $photoState")
                     }
                 }
 
-                is PhotoState.Error -> {
+                is EditorState.PhotoPicked, EditorState.EmptyCanvas -> {
                     // TODO()
                     drawRect(color = background, size = size)
                 }
+            }
+        }
 
-                is PhotoState.Loading -> {
-                    // TODO()
-                    drawRect(color = background, size = size)
+        if (photoState is EditorState.PhotoWithDrawing) {
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .padding(horizontal = 10.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                allColors.forEach { color ->
+                    val currentColor = photoState.drawing.currentColor
+
+                    if (color.value != currentColor.value) {
+                        Box(modifier = Modifier
+                            .size(40.dp)
+                            .background(color, shape = CircleShape)
+                            .clickable(true) {
+                                onAction(CanvasAction.ChangeColor(color))
+                            })
+                    } else {
+                        val borderColor = if (color !in listOf(Color.Red, Color.Magenta)) {
+                            Color.Red
+                        } else {
+                            Color.Green
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .border(
+                                    width = 2.dp,
+                                    color = borderColor,
+                                    shape = CircleShape,
+                                )
+                                .background(color, shape = CircleShape)
+                        )
+                    }
                 }
             }
         }
