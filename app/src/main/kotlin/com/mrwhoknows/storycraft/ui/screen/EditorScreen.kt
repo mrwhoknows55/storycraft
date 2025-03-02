@@ -3,9 +3,9 @@ package com.mrwhoknows.storycraft.ui.screen
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,19 +24,22 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.mrwhoknows.storycraft.R
 import com.mrwhoknows.storycraft.model.CanvasAction
 import com.mrwhoknows.storycraft.model.EditorState
 import com.mrwhoknows.storycraft.model.allColors
+import com.mrwhoknows.storycraft.ui.componenet.DrawingCanvas
 import com.mrwhoknows.storycraft.util.getImageBitmap
 import com.mrwhoknows.storycraft.util.launchCamera
 import timber.log.Timber
@@ -47,10 +50,11 @@ import timber.log.Timber
 fun EditorScreen(
     photoState: EditorState,
     onAction: (CanvasAction) -> Unit,
-    onStoryShareClick: () -> Unit,
+    onStoryShareClick: (Uri) -> Unit,
 ) {
     val background = colorScheme.background
     val context = LocalContext.current
+    var saveCanvasAsImg by remember { mutableStateOf(false) }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -128,46 +132,48 @@ fun EditorScreen(
                 }
 
             } else {
-                Button(onClick = {
-                    onAction(CanvasAction.ClearCanvas)
-                }) {
-                    Text(stringResource(R.string.discard_image))
+                if (photoState.allStrokePaths.isNotEmpty()) {
+                    Button(
+                        onClick = {
+                            onAction(CanvasAction.ClearCanvas)
+                        },
+                    ) {
+                        Text(stringResource(R.string.clear_drawing))
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            onAction(CanvasAction.DiscardImage)
+                        },
+                    ) {
+                        Text(stringResource(R.string.discard_image))
+                    }
                 }
 
-                Button(onClick = onStoryShareClick) {
+                Button(onClick = {
+                    saveCanvasAsImg = true
+                }) {
                     Text(stringResource(R.string.share_on_ig_story))
                 }
             }
         }
 
-        Canvas(
-            modifier = Modifier
-                .background(background)
-                .weight(5f, fill = false)
-                .fillMaxSize()
-                .padding(8.dp)
-        ) {
-            when (val state = photoState) {
-                is EditorState.PhotoWithDrawing -> {
-                    state.bitmap.asImageBitmap().let { imageBitmap ->
-                        val scale = minOf(
-                            size.width / imageBitmap.width, size.height / imageBitmap.height
-                        )
-                        val scaledWidth = imageBitmap.width * scale
-                        val scaledHeight = imageBitmap.height * scale
-                        drawImage(
-                            image = imageBitmap,
-                            dstSize = IntSize(scaledWidth.toInt(), scaledHeight.toInt())
-                        )
-                    }
-                }
-
-                is EditorState.PhotoPicked, EditorState.EmptyCanvas -> {
-                    // TODO()
-                    drawRect(color = background, size = size)
-                }
-            }
-        }
+        val image = (photoState as? EditorState.PhotoWithDrawing)?.bitmap
+        val currentPath = (photoState as? EditorState.PhotoWithDrawing)?.currentStroke
+        val paths = (photoState as? EditorState.PhotoWithDrawing)?.allStrokePaths ?: emptyList()
+        DrawingCanvas(modifier = Modifier
+            .background(background)
+            .weight(5f, fill = false)
+            .fillMaxWidth()
+            .padding(8.dp),
+            bitmap = image,
+            currentStroke = currentPath,
+            paths = paths,
+            action = onAction,
+            saveToDisk = saveCanvasAsImg, onSaveDone = { uri ->
+                saveCanvasAsImg = false
+                onStoryShareClick(uri)
+            })
 
         if (photoState is EditorState.PhotoWithDrawing) {
             FlowRow(
@@ -179,7 +185,7 @@ fun EditorScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 allColors.forEach { color ->
-                    val currentColor = photoState.drawing.currentColor
+                    val currentColor = photoState.currentColor
 
                     if (color.value != currentColor.value) {
                         Box(modifier = Modifier
