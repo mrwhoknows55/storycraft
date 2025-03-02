@@ -36,6 +36,7 @@ android {
         jvmTarget = "11"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }
@@ -57,6 +58,8 @@ dependencies {
     implementation(libs.koin.compose)
     implementation(libs.koin.compose.viewmodel)
     implementation(libs.koin.compose.viewmodel.navigation)
+
+    implementation(libs.timber)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
