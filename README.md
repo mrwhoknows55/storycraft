@@ -15,6 +15,9 @@ StoryCraft
 - Add sticker on the image
 - Share these drawing directly on pentagram story.
 
+## Download APK
+[![App](https://img.shields.io/badge/Download-Latest-App?style=for-the-badge&logo=android)](https://github.com/mrwhoknows55/storycraft/releases/download/1.0/storycraft_v1.0.apk)
+
 ## Screenshots
 
 | Take photo from camera                 | Draw on the photo                      | Add stickers                            | Share on story                         |
