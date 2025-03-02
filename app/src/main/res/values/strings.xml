@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">StoryCraft</string>
+    <string name="discard_image">Discard Image</string>
+    <string name="share_on_ig_story">Share On IG Story</string>
+    <string name="capture_image">Capture Image</string>
 </resources>
