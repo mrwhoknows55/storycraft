@@ -1,14 +1,18 @@
 package com.mrwhoknows.storycraft.util
 
 import android.content.ContentResolver
+import com.mrwhoknows.storycraft.R
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
@@ -70,12 +74,23 @@ fun ContentResolver.getUriFromBitmap(bitmap: Bitmap): Uri? {
 
 fun Context.shareOnIGStory(bitmap: Bitmap) {
     val uri = contentResolver.getUriFromBitmap(bitmap) ?: return
-    val storiesIntent = Intent("com.instagram.share.ADD_TO_STORY")
-    storiesIntent.setDataAndType(uri, "image/*")
-    storiesIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    storiesIntent.setPackage("com.instagram.android")
-    grantUriPermission("com.instagram.android", uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    startActivity(storiesIntent)
+    val idPackage = "com.instagram.android"
+    val storiesIntent = Intent("com.instagram.share.ADD_TO_STORY").apply {
+        setDataAndType(uri, "image/*")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        setPackage(idPackage)
+    }
+    grantUriPermission(idPackage, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    if (storiesIntent.resolveActivity(packageManager) == null) {
+        Timber.e("Instagram not installed")
+        Toast.makeText(
+            this,
+            "Instagram is not install, please install and try later",
+            Toast.LENGTH_SHORT
+        ).show()
+    } else {
+        startActivity(storiesIntent)
+    }
 }
 
 suspend fun Bitmap.saveToDisk(context: Context): Uri = withContext(Dispatchers.IO) {
@@ -96,3 +111,20 @@ private fun File.writeBitmap(bitmap: Bitmap, format: Bitmap.CompressFormat, qual
         out.flush()
     }
 }
+
+suspend fun getStickersDrawableList(): List<Int> = withContext(Dispatchers.IO) {
+    val drawableList = mutableListOf<Int>()
+    val drawableClass = R.drawable::class.java
+    for (i in 1..122) {
+        try {
+            val fieldName = "ic_sticker_$i"
+            val field = drawableClass.getField(fieldName)
+            drawableList.add(field.getInt(null))
+        } catch (_: Exception) {
+            // ignore
+        }
+    }
+    return@withContext drawableList
+}
+
+fun Resources.getBitmapFromDrawableRes(drawableResId: Int): Bitmap = BitmapFactory.decodeResource(this, drawableResId)
