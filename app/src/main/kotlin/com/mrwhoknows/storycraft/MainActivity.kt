@@ -11,6 +11,7 @@ import com.mrwhoknows.storycraft.ui.screen.EditorViewModel
 import com.mrwhoknows.storycraft.ui.theme.StoryCraftTheme
 import com.mrwhoknows.storycraft.util.shareOnIGStory
 import androidx.compose.runtime.getValue
+import com.mrwhoknows.storycraft.util.getImageBitmap
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,15 +20,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             StoryCraftTheme {
                 val viewModel by viewModels<EditorViewModel>()
-                val state by viewModel.photo.collectAsState()
-                EditorScreen(photoState = state,
-                    setImageUri = viewModel::setImageUri,
-                    setBitmap = viewModel::setBitmap,
-                    onDiscardImageClick = viewModel::clearCanvas,
+                val state by viewModel.state.collectAsState()
+                EditorScreen(
+                    photoState = state,
+                    onAction = viewModel::onAction,
                     onStoryShareClick = {
-                        viewModel.getBitmap()?.let {
-                            this@MainActivity.shareOnIGStory(it)
-                        }
+                        shareOnIGStory(getImageBitmap(it))
                     }
                 )
             }

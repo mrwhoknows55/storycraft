@@ -11,6 +11,9 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -73,4 +76,23 @@ fun Context.shareOnIGStory(bitmap: Bitmap) {
     storiesIntent.setPackage("com.instagram.android")
     grantUriPermission("com.instagram.android", uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
     startActivity(storiesIntent)
+}
+
+suspend fun Bitmap.saveToDisk(context: Context): Uri = withContext(Dispatchers.IO) {
+    val file = context.createImageFile()
+    val photoUri = FileProvider.getUriForFile(
+        context, "${context.packageName}.fileprovider", file
+    )
+
+    file.writeBitmap(this@saveToDisk, Bitmap.CompressFormat.PNG, 100)
+    Timber.d("Saved to disk: $photoUri")
+
+    return@withContext photoUri
+}
+
+private fun File.writeBitmap(bitmap: Bitmap, format: Bitmap.CompressFormat, quality: Int) {
+    outputStream().use { out ->
+        bitmap.compress(format, quality, out)
+        out.flush()
+    }
 }
